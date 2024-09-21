@@ -5,4 +5,5 @@ namespace NukeApplicationHost;
 public interface INukePipelineBuilder : IHost
 {
     ITargetBuilder MapTarget(string targetName, Delegate action);
+    ITargetBuilder MapTarget(Delegate action);
 }

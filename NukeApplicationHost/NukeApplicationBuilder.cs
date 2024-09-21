@@ -1,12 +1,14 @@
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
+using NukeApplicationHost.Tools;
 
 namespace NukeApplicationHost;
 
@@ -17,7 +19,15 @@ public class NukeApplicationBuilder : IHostApplicationBuilder
         _builder = new HostApplicationBuilder(new HostApplicationBuilderSettings()
         {
             Args = args,
+            ContentRootPath = Directory.GetCurrentDirectory(),
         });
+        _builder.Configuration.AddCommandLine(args,
+            new Dictionary<string, string>
+            {
+                { "-t", "target" }
+            });
+        _builder.Services.AddScoped<DefaultProject>();
+        _builder.Services.AddScoped<DefaultSolution>();
     }
 
     readonly HostApplicationBuilder _builder;
@@ -44,12 +54,23 @@ public class NukeApplicationBuilder : IHostApplicationBuilder
 
 public static class NukeApplicationBuilderExtensions
 {
-    public static T AddDefaultSolution<T>(this T builder, string solutionPath) where T: IHostApplicationBuilder
+    public static T SetDefaultSolution<T>(this T builder, string solutionPath) where T : IHostApplicationBuilder
     {
-        var basePath = Assembly.GetEntryAssembly()?.Location ?? ".";
-        AbsolutePath path = (AbsolutePath)basePath + solutionPath;
-        builder.Services.AddSingleton<Solution>(s => path.ReadSolution());
-        
+        var basePath = (AbsolutePath)builder.Environment.ContentRootPath;
+        while (!(basePath / solutionPath).FileExists() && basePath.Parent.DirectoryExists())
+        {
+            basePath = basePath.Parent;
+        }
+
+        var eagerlyLoadedSolution = (basePath / solutionPath).ReadSolution();
+        builder.Services.Replace(ServiceDescriptor.Scoped<DefaultSolution>(_ =>
+        {
+            var sln = new DefaultSolution();
+            sln.Set(eagerlyLoadedSolution);
+
+            return sln;
+        }));
+
         return builder;
     }
 }
