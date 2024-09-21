@@ -1,0 +1,4 @@
+### GET request to welcome service
+GET http://localhost:5000/echo?t=Hosting in .NET
+
+###
